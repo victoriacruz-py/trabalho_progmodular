@@ -97,7 +97,7 @@ export class CarrinhoService implements ICarrinho {
         if (res.rowCount === 0) {
           throw new DomainError("NAO_ENCONTRADO", "Carrinho não encontrado.");
         }
-        if (res.rows[0].cliente_id !== clienteId) {
+        if (res.rows[0]!.cliente_id !== clienteId) {
           throw new DomainError("NAO_AUTORIZADO", "Acesso negado ao carrinho.");
         }
       } else {
@@ -106,7 +106,7 @@ export class CarrinhoService implements ICarrinho {
           [clienteId],
         );
         if (existente.rowCount && existente.rowCount > 0) {
-          id = existente.rows[0].id;
+          id = existente.rows[0]!.id;
         } else {
           id = `car_${randomUUID()}`;
           await tx.query(
@@ -145,7 +145,7 @@ export class CarrinhoService implements ICarrinho {
   async obterCarrinho(ctx: Context, carrinhoId: string): Promise<Carrinho> {
     authorize(ctx, ["CLIENTE"], ["M03"]);
 
-    const resCarrinho = await this.db.query<{
+    const rowsCarrinho = await this.db.query<{
       id: string;
       cliente_id: string;
       revisao: number;
@@ -155,21 +155,21 @@ export class CarrinhoService implements ICarrinho {
       [carrinhoId],
     );
 
-    if (resCarrinho.rowCount === 0) {
+    if (rowsCarrinho.length === 0) {
       throw new DomainError("NAO_ENCONTRADO", "Carrinho não encontrado.");
     }
 
-    const row = resCarrinho.rows[0];
+    const row = rowsCarrinho[0]!;
     if (!ctx.service && row.cliente_id !== ctx.actorId) {
       throw new DomainError("NAO_AUTORIZADO", "Acesso negado ao carrinho.");
     }
 
-    const resItens = await this.db.query<{ sku: string; quantidade: number }>(
+    const rowsItens = await this.db.query<{ sku: string; quantidade: number }>(
       "SELECT sku, quantidade FROM carrinho.carrinho_itens WHERE carrinho_id = $1 ORDER BY sku ASC",
       [carrinhoId],
     );
 
-    if (resItens.rowCount === 0) {
+    if (rowsItens.length === 0) {
       return {
         id: row.id,
         clienteId: row.cliente_id,
@@ -184,7 +184,7 @@ export class CarrinhoService implements ICarrinho {
     const itensParaCotar: Array<{ sku: string; quantidade: number }> = [];
     const produtosMap = new Map<string, { nome: string; ativo: boolean }>();
 
-    for (const item of resItens.rows) {
+    for (const item of rowsItens) {
       try {
         const prod = await this.catalogo.obterProduto(item.sku);
         produtosMap.set(item.sku, { nome: prod.nome, ativo: true });
@@ -203,20 +203,20 @@ export class CarrinhoService implements ICarrinho {
       const cotacao = await this.precos.calcular(
         itensParaCotar,
         undefined,
-        this.clock.now().toISOString(),
+        this.clock.now(),
       );
       for (const linha of cotacao.linhas) {
         cotacaoMap.set(linha.sku, {
-          precoUnitario: linha.precoUnitarioCentavos,
-          desconto: linha.descontoCentavos,
-          subtotal: linha.subtotalCentavos,
+          precoUnitario: linha.precoUnitario,
+          desconto: linha.desconto,
+          subtotal: linha.total,
         });
       }
     }
 
     let subtotalGeral = 0;
 
-    for (const item of resItens.rows) {
+    for (const item of rowsItens) {
       const prodInfo = produtosMap.get(item.sku)!;
       const precoInfo = cotacaoMap.get(item.sku);
 
@@ -282,7 +282,7 @@ export class CarrinhoService implements ICarrinho {
         throw new DomainError("NAO_ENCONTRADO", "Carrinho não encontrado.");
       }
 
-      const row = resCarrinho.rows[0];
+      const row = resCarrinho.rows[0]!;
       if (!ctx.service && row.cliente_id !== ctx.actorId) {
         throw new DomainError("NAO_AUTORIZADO", "Acesso negado ao carrinho.");
       }
@@ -297,7 +297,7 @@ export class CarrinhoService implements ICarrinho {
       );
 
       if (idem.rowCount && idem.rowCount > 0) {
-        const reg = idem.rows[0];
+        const reg = idem.rows[0]!;
         if (
           reg.carrinho_id !== carrinhoId ||
           reg.revisao_esperada !== revisaoEsperada
