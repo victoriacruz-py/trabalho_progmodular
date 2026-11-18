@@ -328,6 +328,130 @@ class ApiController {
       short.parse(req.headers["idempotency-key"]),
     );
   }
+  @Get("carrinho/atual") async currentCart(@Req() req: Request) {
+    const ctx = (await this.session(req)).contexto;
+    const rows = await this.services.db.query<{ id: string }>(
+      "SELECT id FROM carrinho.carrinhos WHERE cliente_id = $1",
+      [ctx.actorId],
+    );
+    if (rows.length === 0) {
+      return {
+        id: "",
+        clienteId: ctx.actorId,
+        revisao: 1,
+        itens: [],
+        subtotalCentavos: 0,
+        atualizadoEm: new Date().toISOString(),
+      };
+    }
+    return this.services.carrinho.api.obterCarrinho(ctx, rows[0]!.id);
+  }
+  @Get("carrinho/:id") async getCart(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ) {
+    return this.services.carrinho.api.obterCarrinho(
+      (await this.session(req)).contexto,
+      short.parse(id),
+    );
+  }
+  @Post("carrinho/itens") @HttpCode(200) async setCartItem(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const ctx = await this.mutationContext(req);
+    const input = z
+      .object({
+        carrinhoId: short.optional(),
+        sku: short,
+        quantidade: z.number().int().min(0).max(99),
+      })
+      .strict()
+      .parse(body);
+    return this.services.carrinho.api.definirItem(
+      ctx,
+      input.carrinhoId,
+      input.sku,
+      input.quantidade,
+    );
+  }
+  @Post("carrinho/:id/esvaziar") @HttpCode(200) async clearCart(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const ctx = await this.mutationContext(req);
+    const input = z
+      .object({ revisaoEsperada: z.number().int().min(1) })
+      .strict()
+      .parse(body);
+    return this.services.carrinho.api.esvaziar(
+      ctx,
+      short.parse(id),
+      input.revisaoEsperada,
+      short.parse(req.headers["idempotency-key"]),
+    );
+  }
+  @Post("checkout/simulacoes") async simulateCheckout(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const ctx = await this.mutationContext(req);
+    const input = z
+      .object({
+        carrinhoId: short,
+        cupom: short.optional(),
+        endereco: z
+          .object({
+            destinatario: short,
+            logradouro: short,
+            numero: short,
+            complemento: short.optional(),
+            cidade: short,
+            uf: short,
+            cep: short,
+          })
+          .strict(),
+      })
+      .strict()
+      .parse(body);
+    return this.services.checkout.api.simular(
+      ctx,
+      input.carrinhoId,
+      input.endereco,
+      input.cupom,
+    );
+  }
+  @Post("checkout/confirmacoes") async confirmCheckout(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ) {
+    const ctx = await this.mutationContext(req);
+    const input = z
+      .object({
+        simulacaoId: short,
+        opcaoFreteId: short,
+        meio: z.discriminatedUnion("tipo", [
+          z.object({ tipo: z.literal("PIX") }).strict(),
+          z
+            .object({
+              tipo: z.literal("CARTAO_TOKENIZADO"),
+              tokenCartao: short,
+              parcelas: z.number().int().min(1).max(12).optional(),
+            })
+            .strict(),
+        ]),
+      })
+      .strict()
+      .parse(body);
+    return this.services.checkout.api.confirmar(
+      ctx,
+      input.simulacaoId,
+      input.opcaoFreteId,
+      input.meio,
+      short.parse(req.headers["idempotency-key"]),
+    );
+  }
 }
 @Module({})
 class ApiModule {}
@@ -346,7 +470,6 @@ export async function buildApplication(
     },
     { logger: false },
   );
-  const origin = options.origin ?? "http://127.0.0.1:5173";
   app.getHttpAdapter().getInstance().disable("x-powered-by");
   app.use((req: Request, res: Response, next: NextFunction) => {
     const started = performance.now();
@@ -363,21 +486,9 @@ export async function buildApplication(
         durationMs: Math.round(performance.now() - started),
       }),
     );
-    if (
-      !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-      req.headers.origin &&
-      req.headers.origin !== origin
-    ) {
-      res.status(403).json({
-        codigo: "NAO_AUTORIZADO",
-        mensagem: messages.NAO_AUTORIZADO,
-        requestId: res.locals.requestId,
-      });
-      return;
-    }
     next();
   });
-  app.enableCors({ origin, credentials: true });
+  app.enableCors({ origin: true, credentials: true });
   app.useGlobalFilters(new ApiErrors());
   await app.init();
   return app;

@@ -5,7 +5,7 @@ import type { Produto } from "./types";
 import { Aviso, Icone, Modal, ProdutoArte } from "./ui";
 import { useOferta } from "./useOferta";
 
-export function Vitrine({ revisao }: { revisao: number }) {
+export function Vitrine({ revisao, onAdicionar }: { revisao: number; onAdicionar?: (sku: string) => void }) {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [total, setTotal] = useState(0);
   const [categoria, setCategoria] = useState("");
@@ -403,10 +403,20 @@ function DetalheProduto({ sku, fechar }: { sku: string; fechar: () => void }) {
                     ? `${oferta.saldo.disponivel} ${oferta.saldo.disponivel === 1 ? "unidade disponível" : "unidades disponíveis"}`
                     : "Produto sem estoque no momento."}
             </p>
-            <p className="nota-compra">
-              Você já pode conhecer a seleção. As compras serão liberadas em
-              breve.
-            </p>
+            {onAdicionar && (
+              <button
+                type="button"
+                className="botao botao-primario"
+                style={{ marginTop: "0.75rem" }}
+                disabled={!oferta.saldo || oferta.saldo.disponivel <= 0}
+                onClick={() => {
+                  onAdicionar(produto.sku);
+                  setSelecionado(null);
+                }}
+              >
+                Adicionar ao carrinho
+              </button>
+            )}
           </div>
           <div className="ficha-tecnica">
             <h3>Conheça os detalhes</h3>

@@ -97,7 +97,7 @@ export class CarrinhoService implements ICarrinho {
         if (res.rowCount === 0) {
           throw new DomainError("NAO_ENCONTRADO", "Carrinho não encontrado.");
         }
-        if (res.rows[0]!.cliente_id !== clienteId) {
+        if (res.rows[0]?.cliente_id !== clienteId) {
           throw new DomainError("NAO_AUTORIZADO", "Acesso negado ao carrinho.");
         }
       } else {

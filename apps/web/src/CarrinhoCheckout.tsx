@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { moeda as formatarCentavos } from "./money";
+import type { Sessao } from "./types";
 
 interface ItemCarrinho {
   sku: string;
@@ -35,13 +36,19 @@ interface ResumoCheckout {
   validoAte: string;
 }
 
-export function CarrinhoCheckout({ token }: { token: string }) {
+export function CarrinhoCheckout({
+  sessao,
+  onAbrirLogin,
+}: {
+  sessao: Sessao | null;
+  onAbrirLogin: () => void;
+}) {
   const [carrinho, setCarrinho] = useState<Carrinho | null>(null);
   const [skuInput, setSkuInput] = useState("");
   const [qtdInput, setQtdInput] = useState(1);
   const [cupom, setCupom] = useState("");
   const [endereco, setEndereco] = useState({
-    destinatario: "",
+    destinatario: sessao?.cliente.nome ?? "",
     logradouro: "",
     numero: "",
     cidade: "Rio de Janeiro",
@@ -56,20 +63,39 @@ export function CarrinhoCheckout({ token }: { token: string }) {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
-  const headers = {
+  const headers = (idem?: string): Record<string, string> => ({
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+    ...(sessao ? { "x-csrf-token": sessao.csrfToken } : {}),
+    ...(idem ? { "idempotency-key": idem } : {}),
+  });
+
+  useEffect(() => {
+    if (!sessao) {
+      setCarrinho(null);
+      return;
+    }
+    fetch("/api/carrinho/atual", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.id) setCarrinho(data);
+      })
+      .catch(() => {});
+  }, [sessao]);
 
   async function alterarItem(sku: string, quantidade: number) {
+    if (!sessao) {
+      onAbrirLogin();
+      return;
+    }
     setErro(null);
     setCarregando(true);
     try {
       const resp = await fetch("/api/carrinho/itens", {
         method: "POST",
-        headers,
+        credentials: "include",
+        headers: headers(),
         body: JSON.stringify({
-          carrinhoId: carrinho?.id,
+          ...(carrinho?.id ? { carrinhoId: carrinho.id } : {}),
           sku,
           quantidade,
         }),
@@ -87,21 +113,22 @@ export function CarrinhoCheckout({ token }: { token: string }) {
 
   async function simularCheckout(e: React.FormEvent) {
     e.preventDefault();
-    if (!carrinho) return;
+    if (!carrinho || !sessao) return;
     setErro(null);
     setCarregando(true);
     try {
-      const resp = await fetch("/api/checkout/simular", {
+      const resp = await fetch("/api/checkout/simulacoes", {
         method: "POST",
-        headers,
+        credentials: "include",
+        headers: headers(),
         body: JSON.stringify({
           carrinhoId: carrinho.id,
           endereco,
-          cupom: cupom || undefined,
+          cupom: cupom.trim() || undefined,
         }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.mensagem || "Erro na simulação");
+      if (!resp.ok) throw new Error(data.mensagem || "Erro ao simular checkout");
       setSimulacao(data);
       if (data.opcoesFrete?.length > 0) {
         setFreteSelecionado(data.opcoesFrete[0].id);
@@ -114,31 +141,29 @@ export function CarrinhoCheckout({ token }: { token: string }) {
   }
 
   async function confirmarCompra() {
-    if (!simulacao || !freteSelecionado) return;
+    if (!simulacao || !freteSelecionado || !sessao) return;
     setErro(null);
     setCarregando(true);
     try {
-      const chaveIdempotencia = `web_${simulacao.id}_${freteSelecionado}`;
-      const meio =
-        meioPagamento === "PIX"
-          ? { tipo: "PIX" }
-          : { tipo: "CARTAO_TOKENIZADO", tokenCartao };
-
-      const resp = await fetch("/api/checkout/confirmar", {
+      const chaveIdempotencia = crypto.randomUUID();
+      const resp = await fetch("/api/checkout/confirmacoes", {
         method: "POST",
-        headers: {
-          ...headers,
-          "Idempotency-Key": chaveIdempotencia,
-        },
+        credentials: "include",
+        headers: headers(chaveIdempotencia),
         body: JSON.stringify({
           simulacaoId: simulacao.id,
           opcaoFreteId: freteSelecionado,
-          meio,
+          meio:
+            meioPagamento === "PIX"
+              ? { tipo: "PIX" }
+              : { tipo: "CARTAO_TOKENIZADO", tokenCartao },
         }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.mensagem || "Erro ao confirmar compra");
+      if (!resp.ok) throw new Error(data.mensagem || "Erro ao confirmar pedido");
       setResultadoPedido(data);
+      setCarrinho(null);
+      setSimulacao(null);
     } catch (e: any) {
       setErro(e.message);
     } finally {
@@ -146,49 +171,96 @@ export function CarrinhoCheckout({ token }: { token: string }) {
     }
   }
 
+  if (!sessao) {
+    return (
+      <section className="container" style={{ padding: "2rem 0" }}>
+        <h2>Carrinho e Checkout</h2>
+        <p>Entre na sua conta para visualizar seu carrinho e finalizar compras.</p>
+        <button className="botao botao-primario" onClick={onAbrirLogin}>
+          Entrar ou cadastrar
+        </button>
+      </section>
+    );
+  }
+
   return (
-    <section className="card">
-      <h2>Carrinho de Compras (M02) e Checkout (M03)</h2>
+    <section className="container" style={{ padding: "2rem 0" }}>
+      <h2>Seu Carrinho e Checkout</h2>
 
       {erro && (
-        <div role="alert" style={{ color: "#b91c1c", marginBottom: "1rem" }}>
+        <div
+          style={{
+            padding: "0.75rem",
+            marginBottom: "1rem",
+            background: "#fee2e2",
+            color: "#991b1b",
+            borderRadius: 8,
+          }}
+        >
           {erro}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
         <input
-          placeholder="SKU (ex: NOTE-01)"
+          placeholder="Adicionar por SKU (ex.: NEX-001)"
           value={skuInput}
           onChange={(e) => setSkuInput(e.target.value)}
         />
         <input
           type="number"
-          min={0}
+          min={1}
           max={99}
+          style={{ width: 80 }}
           value={qtdInput}
           onChange={(e) => setQtdInput(Number(e.target.value))}
         />
         <button
           type="button"
-          disabled={carregando || !skuInput}
-          onClick={() => alterarItem(skuInput.trim(), qtdInput)}
+          className="botao botao-primario"
+          disabled={carregando || !skuInput.trim()}
+          onClick={() => {
+            alterarItem(skuInput.trim(), qtdInput);
+            setSkuInput("");
+          }}
         >
-          Definir Item
+          Adicionar Item
         </button>
       </div>
 
-      {carrinho && (
-        <div>
+      {!carrinho || carrinho.itens.length === 0 ? (
+        <p>Seu carrinho está vazio. Adicione produtos pelo catálogo ou pelo SKU acima.</p>
+      ) : (
+        <div style={{ border: "1px solid #e5e7eb", padding: "1rem", borderRadius: 8 }}>
           <p>
-            <strong>Revisão do Carrinho:</strong> {carrinho.revisao} |{" "}
+            <strong>Carrinho ID:</strong> {carrinho.id} (Revisão {carrinho.revisao}) |{" "}
             <strong>Subtotal:</strong> {formatarCentavos(carrinho.subtotalCentavos)}
           </p>
           <ul>
             {carrinho.itens.map((item) => (
-              <li key={item.sku}>
-                {item.nome} ({item.sku}) — Qtd: {item.quantidade} —{" "}
-                {formatarCentavos(item.subtotalCentavos)}
+              <li key={item.sku} style={{ marginBottom: "0.75rem" }}>
+                <strong>{item.nome}</strong> ({item.sku}) — Qtd: {item.quantidade} ×{" "}
+                {formatarCentavos(item.precoUnitarioCentavos)} ={" "}
+                <strong>{formatarCentavos(item.subtotalCentavos)}</strong>
+                {!item.disponivel && (
+                  <span style={{ color: "#dc2626", marginLeft: 8 }}>
+                    [Indisponível: {item.motivoIndisponibilidade}]
+                  </span>
+                )}
+                <button
+                  type="button"
+                  style={{ marginLeft: "0.5rem" }}
+                  onClick={() => alterarItem(item.sku, item.quantidade + 1)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  style={{ marginLeft: "0.25rem" }}
+                  onClick={() => alterarItem(item.sku, item.quantidade - 1)}
+                >
+                  -
+                </button>
                 <button
                   type="button"
                   style={{ marginLeft: "0.5rem" }}
@@ -236,7 +308,7 @@ export function CarrinhoCheckout({ token }: { token: string }) {
               value={cupom}
               onChange={(e) => setCupom(e.target.value)}
             />
-            <button type="submit" disabled={carregando}>
+            <button type="submit" className="botao botao-primario" disabled={carregando}>
               Simular Frete e Total
             </button>
           </div>
@@ -287,6 +359,7 @@ export function CarrinhoCheckout({ token }: { token: string }) {
 
           <button
             type="button"
+            className="botao botao-primario"
             style={{ marginTop: "1rem" }}
             disabled={carregando}
             onClick={confirmarCompra}
@@ -297,7 +370,14 @@ export function CarrinhoCheckout({ token }: { token: string }) {
       )}
 
       {resultadoPedido && (
-        <div style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid #16a34a" }}>
+        <div
+          style={{
+            marginTop: "1.5rem",
+            padding: "1rem",
+            border: "1px solid #16a34a",
+            borderRadius: 8,
+          }}
+        >
           <h3>Pedido Gerado com Sucesso!</h3>
           <p><strong>Pedido ID:</strong> {resultadoPedido.pedidoId}</p>
           <p><strong>Situação:</strong> {resultadoPedido.situacao}</p>

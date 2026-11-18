@@ -5,11 +5,13 @@ import type { Sessao } from "./types";
 import { Aviso, Icone, Modal } from "./ui";
 import { Vitrine } from "./Vitrine";
 import { Gestao } from "./Gestao";
+import { CarrinhoCheckout } from "./CarrinhoCheckout";
 
 export function App() {
   const [sessao, setSessao] = useState<Sessao | null>(null);
   const [carregandoSessao, setCarregandoSessao] = useState(true);
-  const [tela, setTela] = useState<"vitrine" | "gestao">("vitrine");
+  const [tela, setTela] = useState<"vitrine" | "carrinho" | "gestao">("vitrine");
+  const [avisoOk, setAvisoOk] = useState("");
   const [contaAberta, setContaAberta] = useState(false);
   const [erro, setErro] = useState("");
   const [saindo, setSaindo] = useState(false);
@@ -49,6 +51,40 @@ export function App() {
     );
     return () => window.clearTimeout(timer);
   }, [sessao]);
+  async function adicionarAoCarrinho(sku: string) {
+    if (!sessao) {
+      setContaAberta(true);
+      setErro("Entre na sua conta para adicionar produtos ao carrinho.");
+      return;
+    }
+    setErro("");
+    setAvisoOk("");
+    try {
+      const atualResp = await fetch("/api/carrinho/atual", { credentials: "include" });
+      const atual = atualResp.ok ? await atualResp.json() : null;
+      const itemExistente = atual?.itens?.find((i: any) => i.sku === sku);
+      const novaQtd = (itemExistente?.quantidade ?? 0) + 1;
+      const resp = await fetch("/api/carrinho/itens", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": sessao.csrfToken,
+        },
+        body: JSON.stringify({
+          ...(atual?.id ? { carrinhoId: atual.id } : {}),
+          sku,
+          quantidade: novaQtd,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.mensagem || "Erro ao adicionar item");
+      setAvisoOk(`Produto ${sku} adicionado ao carrinho!`);
+      setTela("carrinho");
+    } catch (e) {
+      setErro(mensagemErro(e));
+    }
+  }
   function autenticar(s: Sessao) {
     setSessao(s);
     setContaAberta(false);
