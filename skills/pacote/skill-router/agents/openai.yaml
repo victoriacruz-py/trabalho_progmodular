@@ -1,0 +1,6 @@
+interface:
+  display_name: "Skill Router"
+  short_description: "Seleciona skills uteis e aplica automaticamente"
+  default_prompt: "Use $skill-router para selecionar e aplicar as skills adequadas ao meu pedido."
+policy:
+  allow_implicit_invocation: true

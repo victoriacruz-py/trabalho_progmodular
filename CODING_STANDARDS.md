@@ -1,0 +1,11 @@
+# Padrões de implementação
+
+- **TypeScript estrito:** preservar `strict`, evitar `any` e validar entradas externas em execução. Tipos estáticos não validam JSON recebido.
+- **Dinheiro:** representar BRL em centavos inteiros; validar limites seguros. Percentuais inteiros e arredondamento half-up uma vez por linha, conforme o PDF. Regra monetária pura sem dependência de NestJS, HTTP ou banco.
+- **Módulos:** cada módulo possui seus dados. Consumidores importam somente o `index` público do outro módulo. Repositórios, implementações e SQL permanecem privados; SQL do próprio schema é permitido na implementação. A interface web consome HTTP e não importa código do backend.
+- **Contexto confiável:** papéis, identidade do cliente e identidade de serviço são derivados pelo servidor. Nunca construir contexto privilegiado a partir do corpo ou de cabeçalhos enviados pelo navegador. Verificar autorização na operação pública do módulo.
+- **Efeitos duráveis:** persistir estado e evento na mesma transação; deduplicação do receptor e seu efeito também são atômicos. Repetições mantêm identidade lógica e conteúdo. Testar falhas e retomadas sem presumir execução única do transporte.
+- **Testes de comportamento:** testar interfaces públicas combinadas com exemplos do PDF; não consultar tabelas privadas de domínio como atalho. Usar PostgreSQL real para concorrência e transações. Recuperação exige reinício de processo real; recriar uma factory não equivale a reiniciar a aplicação.
+- **Segurança e privacidade:** não registrar senhas, cookies, tokens, endereços, e-mails ou corpo completo de requisições em logs. Retornar mensagens seguras e identificador de correlação. Não executar ou renderizar conteúdo fornecido pelo usuário como código.
+- **Interface:** controles rotulados, teclado, foco visível e estados de erro/carregamento/vazio. Um preço ausente nunca deve aparecer como zero. Papel oculto na interface não substitui autorização no servidor.
+- **Verificação:** executar compilação, testes pertinentes e `node scripts/check-boundaries.mjs`. O verificador usa AST TypeScript e reconhece imports/reexports, imports dinâmicos literais e SQL estático, incluindo concatenações e templates resolvíveis. Código gerado, SQL inteiramente dinâmico e aliases de funções exigem revisão; análise estática não prova isolamento em execução.

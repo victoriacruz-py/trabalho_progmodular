@@ -1,0 +1,102 @@
+---
+name: requirements-engineering
+description: Use when transforming a cahier des charges, brief, RFP or feature request into engineering-ready requirements. Produces functional and non-functional requirements, actors and permissions, use cases, business rules, exception paths, testable acceptance criteria, and a requirement-to-test traceability matrix. Never invents missing business rules.
+---
+
+# Requirements engineering
+
+A requirement that cannot fail a test is not a requirement. It is a wish.
+
+## The rule that overrides everything else
+
+**Never invent a business rule.** If the source material does not state what happens when a
+payment is declined, you do not decide. You record it as an open question with a recommended
+default, and you mark every downstream artifact that depends on it.
+
+Inventing rules is the most expensive failure mode in this skill: it produces confident,
+well-formatted specifications that describe software nobody asked for.
+
+## Step 1 — Read the source and separate signal
+
+Split the input into four buckets before writing anything:
+
+- **Stated** — explicitly written. Quote it, cite where it came from.
+- **Implied** — a reasonable reading, but not written. Must be confirmed.
+- **Missing** — a gap that blocks implementation. Becomes an open question.
+- **Contradictory** — two statements that cannot both hold. Must be resolved, never silently picked.
+
+A cahier des charges is usually written by people describing a business, not a system.
+Your job is translation, not authorship.
+
+## Step 2 — Actors and permissions
+
+List every actor, human and non-human. For each, define what it may do, what it may never do,
+and what data it may see. Build the permission matrix now — it is the input to authorization
+tests and to tenant-isolation tests later.
+
+| Actor | Can | Cannot | Data visibility |
+|---|---|---|---|
+
+An actor without an explicit "cannot" row has not been analyzed.
+
+## Step 3 — Functional requirements
+
+Each one gets a stable identifier (`FR-001`) that never changes or gets reused.
+
+Format: **Actor** + **action** + **object** + **condition** + **observable outcome**.
+
+> FR-014: An authenticated Manager can export invoices for their own tenant as CSV.
+> Export excludes soft-deleted invoices. Requests for another tenant's invoices return 404.
+
+Each requirement must be atomic (one behavior), observable (verifiable from outside), and
+free of implementation detail (no table or class names).
+
+## Step 4 — Non-functional requirements
+
+Vague NFRs are worse than none, because they pass review and fail production.
+Every NFR needs a number and a measurement method.
+
+Bad: "The system must be fast."
+Good: "NFR-003: p95 latency for `GET /invoices` under 200 ms at 50 concurrent users,
+measured by the load test in `tests/load/invoices.js`."
+
+Cover at minimum: performance, availability, security, privacy and retention, accessibility,
+observability, scalability, compatibility, and operational limits. See
+[references/nfr-catalogue.md](references/nfr-catalogue.md).
+
+## Step 5 — Business rules and exceptions
+
+Business rules are the invariants that hold regardless of the interface. Give them their own
+identifiers (`BR-007`) because several requirements will reference the same rule.
+
+For each rule, define the exception path explicitly: what the system does when the rule is
+violated, what the actor sees, and what is recorded. Undefined exception paths become
+production incidents.
+
+## Step 6 — Acceptance criteria
+
+Write them Given/When/Then, at business language level. Each must be executable by someone who
+did not write it.
+
+Include the negative and abuse cases, not only the happy path: unauthorized actor, wrong tenant,
+missing data, boundary values, concurrent modification, and duplicate submission.
+
+## Step 7 — Traceability
+
+Build the matrix linking business objective → requirement → risk → test. Use
+[templates/traceability-matrix.md](templates/traceability-matrix.md).
+
+A requirement with no test is unverified. A test with no requirement is unexplained.
+Both are findings you must report.
+
+## Output
+
+Use [templates/cahier-des-charges.md](templates/cahier-des-charges.md) for the source
+restatement and [templates/functional-specification.md](templates/functional-specification.md)
+for the specification itself. Close with the open-questions list. Work that depends on an
+unresolved question must be marked blocked, not guessed.
+
+## References
+
+- [Requirement quality checklist](references/quality-checklist.md) — the review pass, ambiguity detection, and common defects.
+- [Non-functional requirement catalogue](references/nfr-catalogue.md) — categories with measurable formulations.

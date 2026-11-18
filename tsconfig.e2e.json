@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.api.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["tests/e2e/**/*.ts", "playwright.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

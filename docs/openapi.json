@@ -1,0 +1,2134 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "E-commerce modular — incremento 1",
+    "version": "0.1.0",
+    "description": "Contrato do adaptador HTTP implementado em apps/api/src/http.ts, verificado em 23/10/2026. Inclui somente fundação, M01, M05, M08 e M09. Não expõe reservas, checkout, pagamentos ou outras operações futuras. Limites de entrada descrevem a interseção entre validação HTTP e domínio."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Mesma origem; durante desenvolvimento a interface pode encaminhar /api por proxy."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Fundação"
+    },
+    {
+      "name": "Clientes"
+    },
+    {
+      "name": "Sessões"
+    },
+    {
+      "name": "Catálogo"
+    },
+    {
+      "name": "Preços"
+    },
+    {
+      "name": "Estoque"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "security": [],
+        "operationId": "health",
+        "tags": [
+          "Fundação"
+        ],
+        "summary": "Verificar conectividade com o banco",
+        "description": "Executa SELECT 1. Não mede desempenho, disponibilidade mensal ou funcionamento de todos os módulos.",
+        "responses": {
+          "200": {
+            "description": "Banco respondeu.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Saude"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/clientes": {
+      "post": {
+        "security": [],
+        "operationId": "cadastrarCliente",
+        "tags": [
+          "Clientes"
+        ],
+        "summary": "Cadastrar cliente",
+        "description": "Cria conta com papel CLIENTE; não inicia sessão e não aceita papéis fornecidos pelo cliente.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Cadastro"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cliente cadastrado, sem senha/hash.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cliente"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/sessoes": {
+      "post": {
+        "security": [],
+        "operationId": "autenticar",
+        "tags": [
+          "Sessões"
+        ],
+        "summary": "Autenticar e definir cookie de sessão",
+        "description": "Resposta 201 por configuração atual do Nest. Sessão opaca dura 30 min. Cinco falhas em 15 min bloqueiam novas tentativas por 15 min, com erro 401 genérico. O JSON não expõe token de autenticação.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credenciais"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Autenticado. Cookie e detalhes da sessão.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              },
+              "Set-Cookie": {
+                "description": "ecommerce_session=<43 caracteres base64url>; HttpOnly; Path=/api; SameSite=Lax; Expires=<vencimento>. Secure somente quando production=true.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessaoAtual"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      },
+      "delete": {
+        "security": [
+          {
+            "SessionCookie": [],
+            "CsrfToken": []
+          }
+        ],
+        "operationId": "encerrarSessao",
+        "tags": [
+          "Sessões"
+        ],
+        "summary": "Revogar a sessão atual",
+        "description": "Revoga a sessão no servidor e apaga o cookie. Repetir após revogação retorna 401; não há corpo de sucesso.",
+        "responses": {
+          "204": {
+            "description": "Sessão revogada.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              },
+              "Set-Cookie": {
+                "description": "Remove ecommerce_session mantendo Path=/api, HttpOnly, SameSite=Lax e Secure conforme ambiente.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/sessoes/atual": {
+      "get": {
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "operationId": "consultarSessao",
+        "tags": [
+          "Sessões"
+        ],
+        "summary": "Recuperar dados da sessão e token CSRF",
+        "responses": {
+          "200": {
+            "description": "Sessão ativa. Não renova sua expiração.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessaoAtual"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/catalogo": {
+      "get": {
+        "security": [],
+        "operationId": "listarProdutos",
+        "tags": [
+          "Catálogo"
+        ],
+        "summary": "Listar produtos ativos",
+        "description": "Filtros exatos por categoria/marca, combinados por AND. Ordenação por SKU. Parâmetros desconhecidos são rejeitados.",
+        "parameters": [
+          {
+            "name": "categoria",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "marca",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 12
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de produtos ativos.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaProdutos"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/catalogo/{sku}": {
+      "get": {
+        "security": [],
+        "operationId": "obterProduto",
+        "tags": [
+          "Catálogo"
+        ],
+        "summary": "Consultar produto ativo",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "description": "SKU estável, sensível a maiúsculas/minúsculas. Codificar com encodeURIComponent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Produto público.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Produto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      },
+      "put": {
+        "security": [
+          {
+            "SessionCookie": [],
+            "CsrfToken": []
+          }
+        ],
+        "operationId": "salvarProduto",
+        "tags": [
+          "Catálogo"
+        ],
+        "summary": "Criar ou substituir produto",
+        "description": "Exige papel GESTOR. sku do corpo deve coincidir com o caminho. Criação omite versaoEsperada; atualização exige versão corrente. Atualizações concorrentes têm um vencedor. Retorna 200 inclusive na criação. Não oferece repetição por Idempotency-Key.",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "description": "SKU estável, sensível a maiúsculas/minúsculas. Codificar com encodeURIComponent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProdutoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Produto salvo e evento confirmado na mesma transação.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Produto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/precos/regras": {
+      "post": {
+        "security": [
+          {
+            "SessionCookie": [],
+            "CsrfToken": []
+          }
+        ],
+        "operationId": "configurarRegra",
+        "tags": [
+          "Preços"
+        ],
+        "summary": "Configurar preço/promoção ou cupom",
+        "description": "Exige GESTOR. Valida SKUs via catálogo público. Campos temporais exigem início anterior ao fim. Publica PrecoAlterado atomicamente; retorno 201 mesmo para atualização. Sem Idempotency-Key.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegraEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Regra atual, com versão e sem versaoEsperada.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegraConfigurada"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/precos/cotacoes": {
+      "post": {
+        "security": [],
+        "operationId": "calcularPrecos",
+        "tags": [
+          "Preços"
+        ],
+        "summary": "Cotar itens sem reservar ou cobrar",
+        "description": "Consulta pública sem sessão/CSRF. Usa relógio do servidor; campo instante é rejeitado. Dinheiro em centavos BRL. Maior desconto elegível entre promoção e cupom, sem acumular; arredondamento uma vez por linha, empate para cima. Validade máxima de 5 min, encurtada por fronteiras temporais. Pode retornar total zero; o checkout futuro será responsável pela rejeição de compra com total zero. Não garante preço contra alterações administrativas.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CotacaoEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cotação consistente, valores/regras/revisões.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cotacao"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/estoque/{sku}": {
+      "get": {
+        "security": [],
+        "operationId": "consultarEstoque",
+        "tags": [
+          "Estoque"
+        ],
+        "summary": "Consultar saldo disponível",
+        "description": "Consulta pública que considera expiração de reservas; pode persistir liberações vencidas e publicar atualização de saldo. SKU sem inventário inicializado retorna 404.",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "description": "SKU estável, sensível a maiúsculas/minúsculas. Codificar com encodeURIComponent.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disponível = físico − reservado efetivo.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Saldo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/estoque/movimentos": {
+      "post": {
+        "security": [
+          {
+            "SessionCookie": [],
+            "CsrfToken": []
+          }
+        ],
+        "operationId": "movimentarEstoque",
+        "tags": [
+          "Estoque"
+        ],
+        "summary": "Registrar entrada ou saída manual de estoque",
+        "description": "Exige papel LOGISTICA; GESTOR sozinho não autoriza. Idempotência no escopo usuário+operação+chave: repetir conteúdo normalizado idêntico retorna o resultado original, sem novo movimento; reutilizar chave com conteúdo diferente dá 409. Nova tentativa lógica usa nova chave. Primeiro movimento de SKU exige catálogo ativo; inventário existente pode ser movimentado após desativação. Saída não consome unidades reservadas.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Identidade estável da tentativa. Usar a mesma chave na repetição após perda de resposta; espaços externos são removidos."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Movimento"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saldo resultante do movimento original, inclusive em replay. Consultar GET estoque para saldo corrente após movimentos posteriores.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Saldo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/gestao/catalogo/{sku}": {
+      "get": {
+        "operationId": "obterProdutoAdministrativo",
+        "tags": [
+          "Catálogo"
+        ],
+        "summary": "Recuperar produto para administração",
+        "description": "Exige sessão válida e papel GESTOR. Não exige CSRF em GET. Inclui produtos inativos com todos os dados e versão para edição/reativação, sem publicá-los na consulta pública. Ausente retorna 404; a leitura não altera estado nem publica eventos.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "SKU estável e sensível à caixa; codificar com encodeURIComponent."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuração persistida completa com versão atual.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Produto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/gestao/precos/{sku}": {
+      "get": {
+        "operationId": "obterPrecoAdministrativo",
+        "tags": [
+          "Preços"
+        ],
+        "summary": "Recuperar preço e promoção para administração",
+        "description": "Exige sessão válida e papel GESTOR. Não exige CSRF em GET. Retorna preço-base, promoção configurada (inclusive futura ou encerrada) e versão atual; sem promoção, o campo promocao é omitido. Esta consulta recupera configuração, não uma cotação no instante atual. Ausente retorna 404; leitura sem efeitos.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "SKU estável e sensível à caixa; codificar com encodeURIComponent."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuração persistida completa com versão atual.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegraPreco"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    },
+    "/api/gestao/cupons/{codigo}": {
+      "get": {
+        "operationId": "obterCupomAdministrativo",
+        "tags": [
+          "Preços"
+        ],
+        "summary": "Recuperar cupom para administração",
+        "description": "Exige sessão válida e papel GESTOR. Não exige CSRF em GET. Retorna cupom completo, inclusive expirado ou futuro, com percentual, início, fim, escopo de SKUs e versão para edição. Cupom global omite skus. Ausente retorna 404; leitura sem efeitos.",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "codigo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "Código normalizado com trim e conversão para maiúsculas; codificar com encodeURIComponent."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuração persistida completa com versão atual.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/X-Content-Type-Options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegraCupom"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "default": {
+            "$ref": "#/components/responses/UnexpectedError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "ecommerce_session",
+        "description": "Cookie HttpOnly, SameSite=Lax, Path=/api; Secure em produção. Cliente de navegador usa credentials:include. Não definir pelo corpo ou por bearer token."
+      },
+      "CsrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "csrfToken devolvido ao autenticar ou consultar sessão atual; enviar junto com o cookie em operações protegidas."
+      }
+    },
+    "schemas": {
+      "Erro": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "INVALIDO",
+              "NAO_ENCONTRADO",
+              "NAO_AUTORIZADO",
+              "CONFLITO",
+              "INDISPONIVEL",
+              "PRECO_INDISPONIVEL",
+              "CUPOM_INVALIDO",
+              "ESTOQUE_INSUFICIENTE",
+              "RESERVA_EXPIRADA"
+            ]
+          },
+          "mensagem": {
+            "type": "string",
+            "description": "Mensagem comercial segura. CUPOM_INVALIDO pode explicar cupom inexistente, ainda não ativo, expirado ou inelegível; detalhes internos não são expostos."
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem",
+          "requestId"
+        ]
+      },
+      "Saude": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "ok",
+            "type": "string"
+          },
+          "incremento": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "incremento"
+        ]
+      },
+      "Cadastro": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+            "description": "Normalizado com trim e conversão para minúsculas."
+          },
+          "senha": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "nome",
+          "email",
+          "senha"
+        ]
+      },
+      "Credenciais": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "senha": {
+            "type": "string",
+            "maxLength": 1024,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "senha"
+        ]
+      },
+      "Cliente": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "email"
+        ]
+      },
+      "Contexto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "CLIENTE",
+                "GESTOR",
+                "LOGISTICA",
+                "ATENDENTE",
+                "MODERADOR"
+              ]
+            }
+          }
+        },
+        "required": [
+          "actorId",
+          "roles"
+        ]
+      },
+      "SessaoAtual": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cliente": {
+            "$ref": "#/components/schemas/Cliente"
+          },
+          "contexto": {
+            "$ref": "#/components/schemas/Contexto"
+          },
+          "expiraEm": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "csrfToken": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{32}$",
+            "description": "Token de proteção CSRF. Não é o segredo de autenticação do cookie."
+          }
+        },
+        "required": [
+          "cliente",
+          "contexto",
+          "expiraEm",
+          "csrfToken"
+        ]
+      },
+      "Dimensoes": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "largura": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "altura": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "profundidade": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "largura",
+          "altura",
+          "profundidade"
+        ]
+      },
+      "ProdutoEntrada": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "marca": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "descricao": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "categoria": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "imagemUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "URL HTTP(S) sem credenciais ou caminho local iniciado por /, sem // inicial, traversal ou dupla codificação."
+          },
+          "atributos": {
+            "type": "object",
+            "maxProperties": 100,
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          "pesoGramas": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "dimensoesMm": {
+            "$ref": "#/components/schemas/Dimensoes"
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "versaoEsperada": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646,
+            "description": "Omitir na criação; obrigatório e igual à versão atual na atualização."
+          }
+        },
+        "required": [
+          "sku",
+          "nome",
+          "marca",
+          "descricao",
+          "categoria",
+          "imagemUrl",
+          "atributos",
+          "pesoGramas",
+          "dimensoesMm",
+          "ativo"
+        ]
+      },
+      "Produto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "marca": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "descricao": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "categoria": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "imagemUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "atributos": {
+            "type": "object",
+            "maxProperties": 100,
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "pesoGramas": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "dimensoesMm": {
+            "$ref": "#/components/schemas/Dimensoes"
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "versao": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "sku",
+          "nome",
+          "marca",
+          "descricao",
+          "categoria",
+          "imagemUrl",
+          "atributos",
+          "pesoGramas",
+          "dimensoesMm",
+          "ativo",
+          "versao"
+        ]
+      },
+      "Pagina": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "tamanho": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "numero",
+          "tamanho"
+        ]
+      },
+      "PaginaProdutos": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Produto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pagina": {
+            "$ref": "#/components/schemas/Pagina"
+          }
+        },
+        "required": [
+          "itens",
+          "total",
+          "pagina"
+        ]
+      },
+      "Promocao": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "percentual": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          }
+        },
+        "required": [
+          "percentual",
+          "inicio",
+          "fim"
+        ],
+        "description": "Uma promoção por SKU. Início inclusivo, fim exclusivo; início deve preceder fim."
+      },
+      "RegraPrecoEntrada": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tipo": {
+            "const": "PRECO",
+            "type": "string"
+          },
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "precoCentavos": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "promocao": {
+            "$ref": "#/components/schemas/Promocao"
+          },
+          "versaoEsperada": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "tipo",
+          "sku",
+          "precoCentavos"
+        ]
+      },
+      "RegraCupomEntrada": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tipo": {
+            "const": "CUPOM",
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Espaços externos removidos; identidade normalizada em maiúsculas."
+          },
+          "percentual": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "skus": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "uniqueItems": true,
+            "description": "Omitir para cupom global. Lista presente deve conter SKUs distintos existentes."
+          },
+          "versaoEsperada": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "tipo",
+          "codigo",
+          "percentual",
+          "inicio",
+          "fim"
+        ]
+      },
+      "RegraEntrada": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RegraPrecoEntrada"
+          },
+          {
+            "$ref": "#/components/schemas/RegraCupomEntrada"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "tipo",
+          "mapping": {
+            "PRECO": "#/components/schemas/RegraPrecoEntrada",
+            "CUPOM": "#/components/schemas/RegraCupomEntrada"
+          }
+        },
+        "description": "Criação sem versaoEsperada; atualização exige versão corrente. Substituição integral: omitir promocao remove promoção; omitir skus torna cupom global."
+      },
+      "RegraPreco": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tipo": {
+            "const": "PRECO",
+            "type": "string"
+          },
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "precoCentavos": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "promocao": {
+            "$ref": "#/components/schemas/Promocao"
+          },
+          "versao": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "tipo",
+          "sku",
+          "precoCentavos",
+          "versao"
+        ]
+      },
+      "RegraCupom": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tipo": {
+            "const": "CUPOM",
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Espaços externos removidos; identidade normalizada em maiúsculas."
+          },
+          "percentual": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "skus": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "minItems": 1,
+            "maxItems": 10000,
+            "uniqueItems": true,
+            "description": "Escopo persistido completo; omitido para cupom global. A escrita HTTP aceita até 1000 SKUs por requisição, e o contrato interno até 10000."
+          },
+          "versao": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "tipo",
+          "codigo",
+          "percentual",
+          "inicio",
+          "fim",
+          "versao"
+        ]
+      },
+      "RegraConfigurada": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RegraPreco"
+          },
+          {
+            "$ref": "#/components/schemas/RegraCupom"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "tipo",
+          "mapping": {
+            "PRECO": "#/components/schemas/RegraPreco",
+            "CUPOM": "#/components/schemas/RegraCupom"
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "quantidade": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "sku",
+          "quantidade"
+        ]
+      },
+      "CotacaoEntrada": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "SKUs distintos; não dividir uma linha em SKUs repetidos."
+          },
+          "cupom": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "itens"
+        ]
+      },
+      "RegraAplicada": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tipo": {
+                "type": "string",
+                "enum": [
+                  "BASE",
+                  "PROMOCAO"
+                ]
+              },
+              "versao": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            },
+            "required": [
+              "tipo",
+              "versao"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tipo": {
+                "type": "string",
+                "const": "CUPOM"
+              },
+              "versao": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "codigo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "tipo",
+              "versao",
+              "codigo"
+            ]
+          }
+        ]
+      },
+      "LinhaPreco": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "quantidade": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "precoUnitario": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "subtotal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "desconto": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "percentual": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "regraVersao": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "regraAplicada": {
+            "$ref": "#/components/schemas/RegraAplicada"
+          }
+        },
+        "required": [
+          "sku",
+          "quantidade",
+          "precoUnitario",
+          "subtotal",
+          "desconto",
+          "total",
+          "percentual",
+          "regraVersao",
+          "regraAplicada"
+        ]
+      },
+      "Cotacao": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "linhas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinhaPreco"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "totalCentavos": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "calculadaEm": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "validaAte": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante ISO 8601 com fuso explícito. Respostas em UTC."
+          },
+          "cupom": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codigo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "versao": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            },
+            "required": [
+              "codigo",
+              "versao"
+            ]
+          }
+        },
+        "required": [
+          "linhas",
+          "totalCentavos",
+          "calculadaEm",
+          "validaAte"
+        ]
+      },
+      "Movimento": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "ENTRADA",
+              "SAIDA"
+            ]
+          },
+          "quantidade": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "justificativa": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "sku",
+          "tipo",
+          "quantidade",
+          "justificativa"
+        ]
+      },
+      "Saldo": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "fisico": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reservado": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "disponivel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "versao": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "sku",
+          "fisico",
+          "reservado",
+          "disponivel",
+          "versao"
+        ]
+      }
+    },
+    "headers": {
+      "X-Request-Id": {
+        "description": "Identificador UUID gerado no servidor para esta requisição.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Cache-Control": {
+        "schema": {
+          "type": "string",
+          "const": "no-store"
+        }
+      },
+      "X-Content-Type-Options": {
+        "schema": {
+          "type": "string",
+          "const": "nosniff"
+        }
+      }
+    },
+    "responses": {
+      "InternalError": {
+        "description": "Falha interna; código de resposta INDISPONIVEL, sem detalhes internos.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "UnexpectedError": {
+        "description": "Erro não listado. Erros de domínio INDISPONIVEL são mapeados para 503; falhas internas para 500.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Dados inválidos; inclui propriedades inesperadas.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Papel insuficiente, CSRF inválido ou Origin divergente.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflito de versão, identidade/chave idempotente ou estoque insuficiente.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Sessão ausente/inválida/expirada ou credenciais inválidas.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Recurso inexistente ou não publicado.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Preço ausente ou cupom inválido, expirado ou inelegível.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache-Control"
+          },
+          "X-Content-Type-Options": {
+            "$ref": "#/components/headers/X-Content-Type-Options"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Erro"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-origin-policy": "Em métodos distintos de GET/HEAD/OPTIONS, um header Origin presente e diferente da origem configurada gera 403. Origem padrão http://127.0.0.1:5173. CORS permite credenciais somente para a origem configurada. Ausência de Origin não dispensa sessão/CSRF nas rotas protegidas.",
+  "x-money": "Todos os valores monetários são inteiros de centavos BRL, entre0 e Number.MAX_SAFE_INTEGER; preço-base estritamente positivo.",
+  "x-unknown-fields": "Corpos JSON e query string do catálogo rejeitam propriedades desconhecidas. Identidade/papéis/serviço/instante fornecidos pelo navegador não são aceitos."
+}

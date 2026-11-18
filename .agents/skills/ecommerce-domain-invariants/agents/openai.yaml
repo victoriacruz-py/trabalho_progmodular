@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invariantes do E-commerce Modular"
+  short_description: "Regras e testes do e-commerce modular INF1040"
+  default_prompt: "Use $ecommerce-domain-invariants para revisar esta alteração contra os contratos e invariantes do projeto."

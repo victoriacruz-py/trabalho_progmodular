@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" role="img" aria-labelledby="titulo">
+  <title id="titulo">Ilustração de tecnologia Nexo Tech</title>
+  <ellipse cx="200" cy="240" rx="146" ry="10" fill="#26324a" opacity=".08"/>
+  <rect x="75" y="47" width="250" height="164" rx="9" fill="#26324a"/>
+  <path d="M87 59h226v139H87z" fill="#5064e8"/>
+  <path d="M87 198V136c45 25 67-89 123-55 38 23 50 88 103 56v61" fill="#b4c0ff"/>
+  <path d="M87 198v-35c45-35 69 37 114-13 45-48 81 36 112 13v35" fill="#8394f4"/>
+  <circle cx="270" cy="92" r="17" fill="#f5c9a4"/>
+  <path d="m75 209-41 21v9h332v-9l-41-21" fill="#acb7cc"/>
+  <path d="m75 209-41 21h332l-41-21" fill="#e5eaf3"/>
+  <path d="M158 210h84l9 10H149z" fill="#c0c9dc"/>
+  <path d="M34 239h332l-14 7H48z" fill="#7786a3"/>
+</svg>
